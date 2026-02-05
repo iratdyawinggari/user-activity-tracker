@@ -61,8 +61,8 @@ func main() {
 	authService := services.NewAuthService()
 
 	// Initialize handlers
-	clientHandler := handlers.NewClientHandler(authService)
 	wsHandler := handlers.NewWebSocketHandler()
+	clientHandler := handlers.NewClientHandler(authService, wsHandler)
 
 	// Setup Gin router
 	if os.Getenv("GIN_MODE") != "debug" {
@@ -104,9 +104,10 @@ func main() {
 
 	// WebSocket route
 	if configs.AppConfig.EnableWebSocket {
+		go wsHandler.RunHub()
 		router.GET("/ws", wsHandler.HandleConnections)
+		log.Println("WebSocket server enabled")
 	}
-
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{

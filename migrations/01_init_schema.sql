@@ -17,20 +17,19 @@ CREATE TABLE IF NOT EXISTS clients (
 
 -- API hits table with partitioning by date
 CREATE TABLE IF NOT EXISTS api_logs (
-    id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
     client_id VARCHAR(100) NOT NULL,
     endpoint VARCHAR(500) NOT NULL,
     ip_address VARCHAR(45) NOT NULL,
-    timestamp TIMESTAMP NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_client_timestamp (client_id, timestamp),
-    INDEX idx_timestamp (timestamp),
-    CONSTRAINT fk_logs_client
-        FOREIGN KEY (client_id)
-        REFERENCES clients(client_id)
-        ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-PARTITION BY RANGE (UNIX_TIMESTAMP(timestamp)) (
+    timestamp DATETIME NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id, timestamp),
+    INDEX idx_client_time (client_id, timestamp),
+    INDEX idx_timestamp (timestamp)
+) ENGINE=InnoDB
+DEFAULT CHARSET=utf8mb4
+COLLATE=utf8mb4_unicode_ci
+PARTITION BY RANGE (TO_DAYS(timestamp)) (
     PARTITION p2024 VALUES LESS THAN (TO_DAYS('2025-01-01')),
     PARTITION p2025 VALUES LESS THAN (TO_DAYS('2026-01-01')),
     PARTITION p2026 VALUES LESS THAN (TO_DAYS('2027-01-01')),
@@ -78,6 +77,8 @@ CREATE TABLE IF NOT EXISTS shard_mapping (
 -- Create read replica user
 CREATE USER IF NOT EXISTS 'replica_user'@'%' IDENTIFIED BY 'replica_password';
 GRANT SELECT ON activity_tracker.* TO 'replica_user'@'%';
+
+DROP PROCEDURE IF EXISTS AggregateDailyUsage;
 
 -- Create stored procedure for daily aggregation
 DELIMITER //

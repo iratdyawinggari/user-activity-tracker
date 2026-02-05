@@ -47,16 +47,18 @@ func (m *DBManager) initialize() {
 	m.WriteDB = writeDB
 
 	// Auto-migrate models
-	err = m.WriteDB.AutoMigrate(
-		&models.Client{},
-		&models.APILogs{},
-		&models.DailyUsage{},
-		&models.JWTBlacklist{},
-		&models.ShardMapping{},
-	)
-	if err != nil {
-		log.Fatal("Failed to auto-migrate database:", err)
-	}
+	// err = m.WriteDB.AutoMigrate(
+	// 	&models.Client{},
+	// 	&models.APILogs{},
+	// 	&models.DailyUsage{},
+	// 	&models.JWTBlacklist{},
+	// 	&models.ShardMapping{},
+	// )
+	// if err != nil {
+	// 	log.Fatal("Failed to auto-migrate database:", err)
+	// }
+
+	log.Println("Skipping AutoMigrate (schema handled by SQL migration)")
 
 	// Set up connection pool
 	sqlDB, err := m.WriteDB.DB()
