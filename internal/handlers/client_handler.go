@@ -20,13 +20,15 @@ type ClientHandler struct {
 	db          *gorm.DB
 	authService *services.AuthService
 	cache       *cache.CacheManager
+	wsHandler   *WebSocketHandler // Add this line
 }
 
-func NewClientHandler(authService *services.AuthService) *ClientHandler {
+func NewClientHandler(authService *services.AuthService, wsHandler *WebSocketHandler) *ClientHandler {
 	return &ClientHandler{
 		db:          database.GetDBManager().WriteDB,
 		authService: authService,
 		cache:       cache.GetCacheManager(),
+		wsHandler:   wsHandler, // Add this line
 	}
 }
 
@@ -164,6 +166,13 @@ func (h *ClientHandler) RecordLog(c *gin.Context) {
 
 	// Publish update for real-time notifications
 	h.cache.PublishUpdate(clientID.(string))
+	if h.wsHandler != nil {
+		h.wsHandler.BroadcastUpdate(clientID.(string), map[string]interface{}{
+			"endpoint":   req.Endpoint,
+			"ip_address": ipAddress,
+			"timestamp":  time.Now().Unix(),
+		})
+	}
 
 	c.JSON(http.StatusAccepted, SuccessResponse{
 		Message: "Log recorded successfully",
@@ -310,9 +319,9 @@ func (h *ClientHandler) fetchTopClients() (TopClientsResponse, error) {
 
 	readDB := database.GetDBManager().GetReadDB()
 	err := readDB.Model(&models.APILogs{}).
-		Select("clients.client_id, clients.name, COUNT(api_hits.id) as request_count").
-		Joins("JOIN clients ON clients.client_id = api_hits.client_id").
-		Where("api_hits.timestamp >= ?", twentyFourHoursAgo).
+		Select("clients.client_id, clients.name, COUNT(api_logs.id) as request_count").
+		Joins("JOIN clients ON clients.client_id = api_logs.client_id").
+		Where("api_logs.timestamp >= ?", twentyFourHoursAgo).
 		Group("clients.client_id, clients.name").
 		Order("request_count DESC").
 		Limit(3).
