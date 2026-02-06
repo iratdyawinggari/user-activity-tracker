@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -40,7 +41,11 @@ func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 
 			// Check IP whitelist if enabled
 			if configs.AppConfig.EnableIPWhitelist {
-				clientIP := c.ClientIP()
+				clientIP := authService.GetClientIPv4(c)
+				// Consider validating IP format
+				if net.ParseIP(clientIP) == nil {
+					clientIP = strings.Split(clientIP, ":")[0] // Handle port if present
+				}
 				if !authService.CheckIPWhitelist(client, clientIP) {
 					c.JSON(http.StatusForbidden, gin.H{"error": "IP not whitelisted"})
 					c.Abort()

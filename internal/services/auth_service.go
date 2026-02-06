@@ -15,6 +15,7 @@ import (
 	"user-activity-tracker/internal/database"
 	"user-activity-tracker/internal/models"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -172,4 +173,19 @@ func (s *AuthService) CheckIPWhitelist(client *models.Client, ip string) bool {
 	}
 
 	return false
+}
+
+func (s *AuthService) GetClientIPv4(c *gin.Context) string {
+	ip := c.ClientIP()
+
+	switch ip {
+	case "::1":
+		return "127.0.0.1"
+	default:
+		if strings.HasPrefix(ip, "::ffff:") {
+			return ip[7:]
+		}
+	}
+
+	return ip
 }
