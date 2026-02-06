@@ -180,6 +180,11 @@ func (h *ClientHandler) RecordLog(c *gin.Context) {
 	})
 }
 
+type UsageRecord struct {
+	Date         string `json:"date"`
+	RequestCount int64  `json:"request_count"`
+}
+
 // GetDailyUsage returns daily usage for last 7 days
 // @Summary Get daily usage
 // @Description Get total daily requests per client for the last 7 days
@@ -205,16 +210,17 @@ func (h *ClientHandler) GetDailyUsage(c *gin.Context) {
 	endDate := time.Now()
 	startDate := endDate.AddDate(0, 0, -6) // Last 7 days
 
-	var dailyUsage []struct {
-		Date         string `json:"date"`
-		RequestCount int64  `json:"request_count"`
-	}
-
 	// Query from database (using read replica)
 	readDB := database.GetDBManager().GetReadDB()
+
+	// Get daily aggregated usage
+	var dailyUsage []UsageRecord
 	err := readDB.Model(&models.DailyUsage{}).
 		Select("DATE_FORMAT(date, '%Y-%m-%d') as date, SUM(request_count) as request_count").
-		Where("client_id = ? AND date >= ? AND date <= ?", clientID, startDate.Format("2006-01-02"), endDate.Format("2006-01-02")).
+		Where("client_id = ? AND date >= ? AND date < ?",
+			clientID,
+			startDate.Format("2006-01-02"),
+			endDate.Format("2006-01-02")).
 		Group("date").
 		Order("date DESC").
 		Scan(&dailyUsage).Error
@@ -224,8 +230,43 @@ func (h *ClientHandler) GetDailyUsage(c *gin.Context) {
 		return
 	}
 
+	// Get today's usage from logs
+	var todayUsage UsageRecord
+	err = readDB.Model(&models.APILogs{}).
+		Select("DATE_FORMAT(timestamp, '%Y-%m-%d') as date, COUNT(id) as request_count").
+		Where("client_id = ? AND DATE(timestamp) = ?",
+			clientID,
+			endDate.Format("2006-01-02")).
+		Group("date").
+		Scan(&todayUsage).Error
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to fetch today's usage"})
+		return
+	}
+
+	// Merge results (replace today's aggregated data with real-time data)
+	result := make([]UsageRecord, 0, len(dailyUsage)+1)
+	todayStr := endDate.Format("2006-01-02")
+
+	// Add or update today's data
+	if todayUsage.Date == todayStr && todayUsage.RequestCount > 0 {
+		// Replace aggregated today data with real-time data
+		for _, record := range dailyUsage {
+			if record.Date != todayStr {
+				result = append(result, record)
+			}
+		}
+		result = append(result, todayUsage)
+	} else {
+		// Just use the aggregated data
+		result = dailyUsage
+	}
+
+	str := fmt.Sprintf("%v", clientID)
+
 	// Fill in missing days with zero
-	response := h.fillMissingDays(dailyUsage, startDate, endDate)
+	response := h.fillMissingDays(str, result, startDate, endDate)
 
 	// Cache the result
 	h.cache.Set(cacheKey, response, configs.AppConfig.CacheTTL)
@@ -233,12 +274,9 @@ func (h *ClientHandler) GetDailyUsage(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-func (h *ClientHandler) fillMissingDays(data []struct {
-	Date         string `json:"date"`
-	RequestCount int64  `json:"request_count"`
-}, startDate, endDate time.Time) DailyUsageResponse {
+func (h *ClientHandler) fillMissingDays(clientID string, data []UsageRecord, startDate, endDate time.Time) DailyUsageResponse {
 	result := DailyUsageResponse{
-		ClientID:  "",
+		ClientID:  clientID,
 		StartDate: startDate.Format("2006-01-02"),
 		EndDate:   endDate.Format("2006-01-02"),
 		Usage:     make([]DayUsage, 0),
