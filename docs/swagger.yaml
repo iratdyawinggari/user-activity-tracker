@@ -1,0 +1,227 @@
+basePath: /api
+definitions:
+  handlers.DailyUsageResponse:
+    properties:
+      client_id:
+        type: string
+      end_date:
+        type: string
+      start_date:
+        type: string
+      usage:
+        items:
+          $ref: '#/definitions/handlers.DayUsage'
+        type: array
+    type: object
+  handlers.DayUsage:
+    properties:
+      date:
+        type: string
+      request_count:
+        type: integer
+    type: object
+  handlers.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  handlers.LogRequest:
+    properties:
+      endpoint:
+        type: string
+    required:
+    - endpoint
+    type: object
+  handlers.RegisterRequest:
+    properties:
+      email:
+        type: string
+      ip_whitelist:
+        type: string
+      name:
+        type: string
+    required:
+    - email
+    - name
+    type: object
+  handlers.RegisterResponse:
+    properties:
+      api_key:
+        type: string
+      client_id:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      name:
+        type: string
+      token:
+        type: string
+    type: object
+  handlers.SuccessResponse:
+    properties:
+      data: {}
+      message:
+        type: string
+    type: object
+  handlers.TopClientsResponse:
+    properties:
+      generated_at:
+        type: string
+      period:
+        type: string
+      top_clients:
+        items:
+          properties:
+            client_id:
+              type: string
+            name:
+              type: string
+            request_count:
+              type: integer
+          type: object
+        type: array
+      total_clients:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@activitytracker.com
+    name: API Support
+  description: A high-performance backend system for tracking user API usage
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: User Activity Tracker API
+  version: "1.0"
+paths:
+  /api/logs:
+    post:
+      consumes:
+      - application/json
+      description: Record an API hit with client information
+      parameters:
+      - description: API hit data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.LogRequest'
+      produces:
+      - application/json
+      responses:
+        "202":
+          description: Accepted
+          schema:
+            $ref: '#/definitions/handlers.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Record an API hit
+      tags:
+      - logs
+  /api/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new client with name, email, and generate API key
+      parameters:
+      - description: Client registration data
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/handlers.RegisterResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: Register a new client
+      tags:
+      - clients
+  /api/usage/daily:
+    get:
+      description: Get total daily requests per client for the last 7 days
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.DailyUsageResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get daily usage
+      tags:
+      - usage
+  /api/usage/top:
+    get:
+      description: Get top 3 clients with highest total requests in last 24 hours
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.TopClientsResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - ApiKeyAuth: []
+      summary: Get top clients
+      tags:
+      - usage
+securityDefinitions:
+  ApiKeyAuth:
+    in: header
+    name: X-API-Key
+    type: apiKey
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

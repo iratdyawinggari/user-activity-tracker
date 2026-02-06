@@ -80,29 +80,32 @@ GRANT SELECT ON activity_tracker.* TO 'replica_user'@'%';
 
 DROP PROCEDURE IF EXISTS AggregateDailyUsage;
 
--- Create stored procedure for daily aggregation
 DELIMITER //
+
 CREATE PROCEDURE AggregateDailyUsage()
 BEGIN
     INSERT INTO daily_usage (client_id, date, request_count)
     SELECT 
         client_id,
-        DATE(timestamp) as date,
-        COUNT(*) as request_count
+        DATE(timestamp),
+        COUNT(*)
     FROM api_logs
-    WHERE timestamp >= DATE_SUB(CURDATE(), INTERVAL 1 DAY)
-    AND timestamp < CURDATE()
+    WHERE timestamp >= CURDATE() - INTERVAL 1 DAY
+      AND timestamp < CURDATE()
     GROUP BY client_id, DATE(timestamp)
-    ON DUPLICATE KEY UPDATE 
+    ON DUPLICATE KEY UPDATE
         request_count = VALUES(request_count),
         updated_at = CURRENT_TIMESTAMP;
 END //
+
 DELIMITER ;
 
--- Create event scheduler for daily aggregation
 SET GLOBAL event_scheduler = ON;
+
+DROP EVENT IF EXISTS activity_tracker.daily_aggregation;
+
 CREATE EVENT IF NOT EXISTS daily_aggregation
 ON SCHEDULE EVERY 1 DAY
-STARTS TIMESTAMP(CURRENT_DATE, '23:59:59')
+STARTS TIMESTAMP(CURRENT_DATE , '00:05:00')
 DO
     CALL AggregateDailyUsage();
